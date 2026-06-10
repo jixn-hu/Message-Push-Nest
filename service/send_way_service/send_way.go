@@ -171,17 +171,17 @@ func (w *WayDetailQyWeiXinApp) Validate(authJson string) (string, interface{}) {
 }
 
 func (w *WayDetailQyWeiXinApp) Test() (string, string) {
-	testMsg := "This is a test message from message-nest."
 	var cli = message.QyWeiXinApp{
 		CorpID:     w.CorpID,
 		CorpSecret: w.CorpSecret,
 		AgentID:    w.AgentID,
 	}
-	res, err := cli.SendMessageText(testMsg, "@all", "", "")
+	// 仅验证凭证是否正确，获取 access_token 成功即表示 corpid/secret 有效
+	_, err := cli.GetAccessTokenForTest()
 	if err != nil {
-		return fmt.Sprintf("发送失败：%s", err), string(res)
+		return fmt.Sprintf("凭证验证失败：%s", err), ""
 	}
-	return "", string(res)
+	return "", "凭证验证成功，access_token 获取正常"
 }
 
 // WayDetailFeishu 飞书渠道明细字段

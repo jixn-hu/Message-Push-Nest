@@ -81,6 +81,11 @@ func (t *QyWeiXinApp) getAccessToken() (string, error) {
 	return r.Token, nil
 }
 
+// GetAccessTokenForTest 对外暴露的access_token验证方法，用于渠道测试
+func (t *QyWeiXinApp) GetAccessTokenForTest() (string, error) {
+	return t.getAccessToken()
+}
+
 func (t *QyWeiXinApp) send(body interface{}) ([]byte, error) {
 	token, err := t.getAccessToken()
 	if err != nil {
