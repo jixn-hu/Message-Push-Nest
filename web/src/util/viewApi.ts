@@ -1,7 +1,8 @@
 import { CodeTemplates } from './code-templates';
+import config from '../../config.js';
 
-const gethttpOrigin = () => {
-    return window.location.origin
+const getApiBaseUrl = () => {
+    return config.apiUrl || window.location.origin
 }
 
 // ==================== 公共加密工具 ====================
@@ -49,7 +50,7 @@ export class ApiStrGenerate {
     }
 
     static getApiUrl() {
-        return `${gethttpOrigin()}/api/v1/message/send`;
+        return `${getApiBaseUrl()}/api/v1/message/send`;
     }
 
     static getCurlString(task_id: string, options: any, isFunction: boolean = false) {
@@ -117,7 +118,7 @@ export class TemplateApiStrGenerate {
     }
 
     static getApiUrl() {
-        return `${gethttpOrigin()}/api/v2/message/send`;
+        return `${getApiBaseUrl()}/api/v2/message/send`;
     }
 
     static getCurlString(template_id: string, placeholders_json: string, options: any = {}, isFunction: boolean = false) {

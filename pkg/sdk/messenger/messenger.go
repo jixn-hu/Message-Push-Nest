@@ -38,6 +38,7 @@ const (
 	ChannelEmail           = channels.ChannelEmail
 	ChannelDtalk           = channels.ChannelDtalk
 	ChannelQyWeiXin        = channels.ChannelQyWeiXin
+	ChannelQyWeiXinApp     = channels.ChannelQyWeiXinApp
 	ChannelFeishu          = channels.ChannelFeishu
 	ChannelCustom          = channels.ChannelCustom
 	ChannelWeChatOFAccount = channels.ChannelWeChatOFAccount
@@ -69,6 +70,7 @@ func init() {
 	RegisterChannel(ChannelEmail, func() Channel { return channels.NewEmailChannel() })
 	RegisterChannel(ChannelDtalk, func() Channel { return channels.NewDtalkChannel() })
 	RegisterChannel(ChannelQyWeiXin, func() Channel { return channels.NewQyWeiXinChannel() })
+	RegisterChannel(ChannelQyWeiXinApp, func() Channel { return channels.NewQyWeiXinAppChannel() })
 	RegisterChannel(ChannelFeishu, func() Channel { return channels.NewFeishuChannel() })
 	RegisterChannel(ChannelTelegram, func() Channel { return channels.NewTelegramChannel() })
 	RegisterChannel(ChannelBark, func() Channel { return channels.NewBarkChannel() })

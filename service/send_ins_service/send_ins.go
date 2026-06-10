@@ -58,6 +58,25 @@ func (sw *SendTaskInsService) ValidateDiffIns(ins models.SendTasksIns) (string, 
 		var Config models.InsQyWeiXinConfig
 		return "", Config
 	}
+	if ins.WayType == constant.MessageTypeQyWeiXinApp {
+		var Config models.InsQyWeiXinAppConfig
+		err := json.Unmarshal([]byte(ins.Config), &Config)
+		if err != nil {
+			return "企业微信应用配置反序列化失败！", empty
+		}
+		if Config.SendType == "" {
+			if Config.Touser == "" && Config.Toparty == "" && Config.Totag == "" {
+				return "企业微信应用接收人配置不能全部为空", empty
+			}
+		} else if Config.SendType == "group" {
+			if Config.ChatID == "" {
+				return "群聊模式必须指定群聊ID", empty
+			}
+		} else if Config.SendType != "user" {
+			return "发送类型必须是 user 或 group", empty
+		}
+		return "", Config
+	}
 	if ins.WayType == constant.MessageTypeFeishu {
 		var Config models.InsFeishuConfig
 		return "", Config

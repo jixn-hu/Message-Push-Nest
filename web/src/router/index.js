@@ -1,6 +1,8 @@
 import { createRouter, createWebHistory, createWebHashHistory } from 'vue-router'
 // import LoginInex from '../components/Login.vue'
 import { CONSTANT } from '../constant'
+import axios from 'axios'
+import config from '../../config.js'
 
 const router = createRouter({
   // 使用 HTML5 History 模式，确保 URL 变化反映在浏览器地址栏中
@@ -43,16 +45,6 @@ const router = createRouter({
           component: () => import('../components/pages/sendWays/SendWays.vue')
         },
         {
-          path: 'sendtasks',
-          name: 'sendtasks',
-          component: () => import('../components/pages/sendTasks/SendTasks.vue')
-        },
-        {
-          path: 'cronmessages',
-          name: 'cronmessages',
-          component: () => import('../components/pages/cronMessages/CronMessages.vue')
-        },
-        {
           path: 'templates',
           name: 'templates',
           component: () => import('../components/pages/messageTemplate/MessageTemplate.vue')
@@ -63,7 +55,7 @@ const router = createRouter({
     //   path: '/settings',
     //   name: 'settings',
     //   component: () => import('../views/tabsTools/settings/settings.vue')
-    // },   
+    // },
     // {
     //   path: '/hostedMessage',
     //   name: 'hostedmessage',
@@ -77,25 +69,51 @@ const router = createRouter({
   ]
 })
 
+// 自动登录：无 token 时自动调用 /auth 获取 token
+const autoLogin = async () => {
+  // 可通过 VITE_AUTO_LOGIN_ACCOUNT / VITE_AUTO_LOGIN_PASSWORD 环境变量配置
+  const account = import.meta.env.VITE_AUTO_LOGIN_ACCOUNT || 'admin'
+  const password = import.meta.env.VITE_AUTO_LOGIN_PASSWORD || '123456'
+  try {
+    const baseURL = config.apiUrl + config.pathPrefix
+    const res = await axios.post(baseURL + '/auth', { username: account, passwd: password })
+    if (res.data && res.data.code === 200 && res.data.data && res.data.data.token) {
+      localStorage.setItem(CONSTANT.STORE_TOKEN_NAME, res.data.data.token)
+      return true
+    }
+  } catch (e) {
+    console.warn('自动登录失败，跳转登录页面')
+  }
+  return false
+}
+
 // 登录失效重定向到登录页面
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
   const token = localStorage.getItem(CONSTANT.STORE_TOKEN_NAME);
-  const isAuthenticated = Boolean(token && token.trim() !== '');
+  let isAuthenticated = Boolean(token && token.trim() !== '');
 
   // 404页面不需要登录验证
   if (to.name === '404') {
     next();
     return;
   }
-  
+
+  // 无 token 时尝试自动登录
+  if (!isAuthenticated && to.path !== '/login') {
+    const success = await autoLogin()
+    if (success) {
+      isAuthenticated = true
+    }
+  }
+
   // 如果没有token且不是访问登录页，跳转到登录页
   if (!isAuthenticated && to.path !== '/login') {
     next('/login');
-  } 
+  }
   // 如果有token且访问登录页，跳转到首页
   else if (isAuthenticated && to.path === '/login') {
     next('/');
-  } 
+  }
   // 其他情况正常访问
   else {
     next();

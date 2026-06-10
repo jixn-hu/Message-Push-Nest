@@ -63,6 +63,7 @@ const (
 	ChannelEmail           = "Email"
 	ChannelDtalk           = "Dtalk"
 	ChannelQyWeiXin        = "QyWeiXin"
+	ChannelQyWeiXinApp     = "QyWeiXinApp"
 	ChannelFeishu          = "Feishu"
 	ChannelCustom          = "Custom"
 	ChannelWeChatOFAccount = "WeChatOFAccount"

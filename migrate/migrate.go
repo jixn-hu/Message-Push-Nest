@@ -73,6 +73,7 @@ func Setup() {
 		&models.LoginLog{},
 		&models.Template{},
 		&models.SendStats{},
+		&models.QyWeiXinAppChat{},
 	}
 
 	for _, table := range tables {

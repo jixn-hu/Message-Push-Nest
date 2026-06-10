@@ -1,0 +1,10 @@
+version: "3.7"
+services:
+  pushx:
+    image: crpi-qcglwoi73qr0h01l.cn-hangzhou.personal.cr.aliyuncs.com/jixn/pushx:latest
+    container_name: pushx
+    restart: always
+    ports:
+      - "8394:8000"
+    volumes:
+      - ./data:/app/conf

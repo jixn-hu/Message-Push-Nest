@@ -8,7 +8,7 @@ const getPathPrefix = () => {
 };
 
 const config = {
-    apiUrl: isProduction ? '' : 'http://localhost:8000',
+    apiUrl: isProduction ? '' : `http://${window.location.hostname}:8000`,
     pathPrefix: getPathPrefix(),
 };
 

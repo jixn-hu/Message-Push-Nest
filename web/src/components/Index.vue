@@ -262,9 +262,7 @@ const tabRoutes: TabRoute[] = [
   { name: '数据统计', path: '/' },
   { name: '发信日志', path: '/sendlogs' },
   { name: '托管消息', path: '/hostedmessage' },
-  { name: '定时消息', path: '/cronmessages' },
   { name: '模板任务', path: '/templates' },
-  { name: '发信任务', path: '/sendtasks' },
   { name: '发信渠道', path: '/sendways' },
   { name: '设置偏好', path: '/settings' }
 ];

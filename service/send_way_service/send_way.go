@@ -39,6 +39,7 @@ var (
 		constant.MessageTypeEmail:           func() WayValidator { return &WayDetailEmail{} },
 		constant.MessageTypeDtalk:           func() WayValidator { return &WayDetailDTalk{} },
 		constant.MessageTypeQyWeiXin:        func() WayValidator { return &WayDetailQyWeiXin{} },
+		constant.MessageTypeQyWeiXinApp:     func() WayValidator { return &WayDetailQyWeiXinApp{} },
 		constant.MessageTypeFeishu:          func() WayValidator { return &WayDetailFeishu{} },
 		constant.MessageTypeCustom:          func() WayValidator { return &WayDetailCustom{} },
 		constant.MessageTypeWeChatOFAccount: func() WayValidator { return &WeChatOFAccount{} },
@@ -54,6 +55,7 @@ var (
 		constant.MessageTypeEmail:           func(m interface{}) WayTester { return m.(*WayDetailEmail) },
 		constant.MessageTypeDtalk:           func(m interface{}) WayTester { return m.(*WayDetailDTalk) },
 		constant.MessageTypeQyWeiXin:        func(m interface{}) WayTester { return m.(*WayDetailQyWeiXin) },
+		constant.MessageTypeQyWeiXinApp:     func(m interface{}) WayTester { return m.(*WayDetailQyWeiXinApp) },
 		constant.MessageTypeFeishu:          func(m interface{}) WayTester { return m.(*WayDetailFeishu) },
 		constant.MessageTypeCustom:          func(m interface{}) WayTester { return m.(*WayDetailCustom) },
 		constant.MessageTypeWeChatOFAccount: func(m interface{}) WayTester { return m.(*WeChatOFAccount) },
@@ -145,6 +147,37 @@ func (w *WayDetailQyWeiXin) Test() (string, string) {
 		AccessToken: w.AccessToken,
 	}
 	res, err := cli.SendMessageText(testMsg)
+	if err != nil {
+		return fmt.Sprintf("发送失败：%s", err), string(res)
+	}
+	return "", string(res)
+}
+
+// WayDetailQyWeiXinApp 企业微信应用渠道明细字段
+type WayDetailQyWeiXinApp struct {
+	CorpID     string `json:"corpid" validate:"required,max=100" label:"企业ID"`
+	CorpSecret string `json:"corpsecret" validate:"required,max=100" label:"应用Secret"`
+	AgentID    int    `json:"agentid" validate:"required" label:"应用AgentID"`
+}
+
+func (w *WayDetailQyWeiXinApp) Validate(authJson string) (string, interface{}) {
+	var empty interface{}
+	err := json.Unmarshal([]byte(authJson), w)
+	if err != nil {
+		return "企业微信应用auth反序列化失败！", empty
+	}
+	_, msg := app.CommonPlaygroundValid(*w)
+	return msg, w
+}
+
+func (w *WayDetailQyWeiXinApp) Test() (string, string) {
+	testMsg := "This is a test message from message-nest."
+	var cli = message.QyWeiXinApp{
+		CorpID:     w.CorpID,
+		CorpSecret: w.CorpSecret,
+		AgentID:    w.AgentID,
+	}
+	res, err := cli.SendMessageText(testMsg, "@all", "", "")
 	if err != nil {
 		return fmt.Sprintf("发送失败：%s", err), string(res)
 	}

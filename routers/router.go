@@ -164,6 +164,12 @@ func InitRouter(f embed.FS) *gin.Engine {
 		// hostedMessage
 		apiV1.GET("/hostedmessages/list", v1.GetHostMessageList)
 
+		// qyweixinApp group chats
+		apiV1.POST("/qyweixinapp/chats/create", v1.CreateGroupChat)
+		apiV1.GET("/qyweixinapp/chats/list", v1.ListGroupChats)
+		apiV1.POST("/qyweixinapp/chats/refresh", v1.RefreshGroupChat)
+		apiV1.POST("/qyweixinapp/chats/delete", v1.DeleteGroupChat)
+
 		// messageTemplate
 		apiV1.GET("/templates/list", v1.GetMessageTemplateList)
 		apiV1.GET("/templates/get", v1.GetMessageTemplate)

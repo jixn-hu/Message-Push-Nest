@@ -33,6 +33,15 @@ type InsDtalkConfig struct {
 type InsQyWeiXinConfig struct {
 }
 
+// InsQyWeiXinAppConfig 实例里面的企业微信应用config
+type InsQyWeiXinAppConfig struct {
+	SendType string `json:"send_type"` // "user" 或 "group"
+	Touser   string `json:"touser" validate:"max=2000" label:"接收人userid"`
+	Toparty  string `json:"toparty" validate:"max=2000" label:"接收部门id"`
+	Totag    string `json:"totag" validate:"max=2000" label:"接收标签id"`
+	ChatID   string `json:"chatid" validate:"max=100" label:"群聊ID"`
+}
+
 // InsFeishuConfig 实例里面的飞书config
 type InsFeishuConfig struct {
 }

@@ -198,7 +198,6 @@ const handleClose = () => {
 
 // 获取最终提交数据
 const getFinalData = () => {
-  // 根据当前渠道配置的inputs中的col字段，从formData中提取对应的值组成auth对象
   const config = currentChannelConfig.value
   const authData: Record<string, any> = {}
   if (config && config.inputs) {
@@ -209,6 +208,9 @@ const getFinalData = () => {
           authData[input.col] = parseInt(formData.value[input.col])
         }
         if (config.type == 'Gotify' && input.col == 'priority') {
+          authData[input.col] = parseInt(formData.value[input.col])
+        }
+        if (config.type == 'QyWeiXinApp' && input.col == 'agentid') {
           authData[input.col] = parseInt(formData.value[input.col])
         }
       }
@@ -263,6 +265,7 @@ const getChannelIcon = (type: string) => {
     'Email': Mail,
     'Dtalk': Zap,
     'QyWeiXin': Building2,
+    'QyWeiXinApp': Building2,
     'Feishu': Bird,
     'Custom': PlugZap,
     'WeChatOFAccount': QrCode,

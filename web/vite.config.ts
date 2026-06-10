@@ -18,6 +18,10 @@ export default defineConfig(() => {
     // 使用相对路径，这样可以在任何路径下部署
     base: './',
     plugins: [vue(), tailwindcss()],
+    server: {
+      host: '0.0.0.0',
+      port: 5174,
+    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),
