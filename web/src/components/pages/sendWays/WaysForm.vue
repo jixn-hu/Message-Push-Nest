@@ -432,7 +432,7 @@ const saveButtonText = computed(() => {
 
     <div class="flex justify-end gap-2 mt-8 pt-4 border-t">
       <Button variant="outline" @click="handleClose">取消</Button>
-      <Button @click="handleTest">测试</Button>
+      <Button @click="handleTest" v-if="channelMode !== 'QyWeiXinApp'">测试</Button>
       <Button @click="handleSave">{{ saveButtonText }}</Button>
     </div>
   </div>
