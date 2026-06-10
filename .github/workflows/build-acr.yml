@@ -1,0 +1,54 @@
+name: build-and-push-acr
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  NODE_ENV: prod
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@main
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install npm dependencies
+        run: npm ci
+        working-directory: web/
+
+      - name: Build frontend (skip type check)
+        run: npx vite build
+        working-directory: web/
+
+      - name: Setup Go
+        uses: actions/setup-go@main
+        with:
+          go-version: '>=1.20'
+          cache: true
+
+      - name: Build Go binary
+        run: |
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+          go build -ldflags="-s -w" -o Message-Nest main.go
+
+      - name: Login to Alibaba Cloud ACR
+        uses: docker/login-action@v3
+        with:
+          registry: crpi-qcglwoi73qr0h01l.cn-hangzhou.personal.cr.aliyuncs.com
+          username: ${{ secrets.ACR_USER }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: crpi-qcglwoi73qr0h01l.cn-hangzhou.personal.cr.aliyuncs.com/jixn/pushx:latest

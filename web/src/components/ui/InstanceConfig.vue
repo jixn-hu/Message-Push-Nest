@@ -93,10 +93,36 @@ const formData = ref<Record<string, any>>({
   allowMultiRecip: false  // 默认false为固定模式，true为动态模式
 })
 
+// 发送方式（用于企业微信应用等支持多模式的渠道）
+const sendTypeMode = ref('user')
+const selectedChatId = ref('')
+const groupChats = ref<any[]>([])
+const isLoadingChats = ref(false)
+
+// 新建群聊对话框
+const showCreateChatDialog = ref(false)
+const createChatForm = ref({
+  name: '',
+  owner: '',
+  userlist: ''
+})
+const isCreatingChat = ref(false)
+
 // 是否显示接收者输入框
 const shouldShowRecipientInput = computed(() => {
   // 支持动态接收者 且 未勾选（固定模式）时显示输入框
   return currentChannelConfig.value?.dynamicRecipient?.support && !formData.value.allowMultiRecip
+})
+
+// 发送方式配置
+const currentSendTypeConfig = computed(() => {
+  return currentChannelConfig.value?.sendTypeConfig || null
+})
+
+// 当前选中的发送模式配置
+const currentModeConfig = computed(() => {
+  if (!currentSendTypeConfig.value) return null
+  return currentSendTypeConfig.value.modes.find((m: any) => m.value === sendTypeMode.value) || null
 })
 
 // 监听渠道变化
@@ -107,6 +133,119 @@ const handlechannelNameChange = () => {
   }
   // 重置动态接收者设置
   formData.value.allowMultiRecip = false
+  // 重置发送方式
+  if (currentSendTypeConfig.value) {
+    sendTypeMode.value = currentSendTypeConfig.value.defaultMode || 'user'
+    selectedChatId.value = ''
+    groupChats.value = []
+  }
+}
+
+// 获取群聊列表（从本地数据库）
+const fetchGroupChats = async () => {
+  const wayId = displayOptions.value[0]?.id
+  if (!wayId) return
+  isLoadingChats.value = true
+  try {
+    const response = await request.get('/qyweixinapp/chats/list', {
+      params: { way_id: wayId }
+    })
+    if (response.status === 200 && response.data.code === 200) {
+      groupChats.value = response.data.data || []
+    }
+  } catch (error) {
+    console.error('获取群聊列表失败', error)
+  } finally {
+    isLoadingChats.value = false
+  }
+}
+
+// 从企业微信同步群聊信息并刷新列表
+const syncAndFetchGroupChats = async () => {
+  const wayId = displayOptions.value[0]?.id
+  if (!wayId) return
+  isLoadingChats.value = true
+  try {
+    // 先获取当前列表
+    const listRes = await request.get('/qyweixinapp/chats/list', {
+      params: { way_id: wayId }
+    })
+    const chats = listRes.data?.data || []
+    // 逐个从企业微信同步最新信息
+    for (const chat of chats) {
+      try {
+        await request.post('/qyweixinapp/chats/refresh', {
+          id: chat.id,
+          way_id: wayId
+        })
+      } catch (e) {
+        console.error(`同步群聊 ${chat.name} 失败`, e)
+      }
+    }
+    // 重新加载
+    const response = await request.get('/qyweixinapp/chats/list', {
+      params: { way_id: wayId }
+    })
+    if (response.status === 200 && response.data.code === 200) {
+      groupChats.value = response.data.data || []
+    }
+  } catch (error) {
+    console.error('同步群聊列表失败', error)
+  } finally {
+    isLoadingChats.value = false
+  }
+}
+
+// 监听发送方式切换，切换到群聊时自动加载群聊列表
+watch(sendTypeMode, (newMode) => {
+  if (newMode === 'group' && currentModeConfig.value?.useChatSelector) {
+    fetchGroupChats()
+  }
+})
+
+// 创建群聊
+const handleCreateChat = async () => {
+  if (!createChatForm.value.name || !createChatForm.value.owner || !createChatForm.value.userlist) {
+    toast.error('请填写完整的群聊信息')
+    return
+  }
+
+  const wayId = displayOptions.value[0]?.id
+  if (!wayId) {
+    toast.error('请先选择渠道')
+    return
+  }
+
+  const userlist = createChatForm.value.userlist.split(/[|,;；，\s]+/).filter(Boolean)
+  if (userlist.length < 2) {
+    toast.error('群聊成员至少需要2人')
+    return
+  }
+
+  isCreatingChat.value = true
+  try {
+    const response = await request.post('/qyweixinapp/chats/create', {
+      way_id: wayId,
+      name: createChatForm.value.name,
+      owner: createChatForm.value.owner,
+      userlist: userlist
+    })
+    if (response.status === 200 && response.data.code === 200) {
+      toast.success('创建群聊成功')
+      showCreateChatDialog.value = false
+      createChatForm.value = { name: '', owner: '', userlist: '' }
+      await fetchGroupChats()
+      if (response.data.data?.chatid) {
+        selectedChatId.value = response.data.data.chatid
+      }
+    } else {
+      toast.error(response.data.msg || '创建群聊失败')
+    }
+  } catch (error: any) {
+    toast.error(error.response?.data?.msg || '创建群聊失败')
+  } finally {
+    isCreatingChat.value = false
+  }
 }
 
 // 添加单条实例配置
@@ -156,6 +295,14 @@ const handleAddSubmit = async () => {
     return
   }
 
+  // 验证群聊模式是否已选择群聊
+  if (currentSendTypeConfig.value && sendTypeMode.value === 'group') {
+    if (!selectedChatId.value) {
+      toast.error('请选择群聊或新建群聊')
+      return
+    }
+  }
+
   // 仅模板需要验证对应格式的内容是否为空
   if (props.type === 'template') {
     const templateFieldMap: Record<string, string> = {
@@ -176,6 +323,16 @@ const handleAddSubmit = async () => {
   }
 
   // 组建表单数据
+  // 构建 config JSON
+  const configData: Record<string, any> = { ...formData.value }
+  // 发送方式配置
+  if (currentSendTypeConfig.value) {
+    configData.send_type = sendTypeMode.value
+    if (sendTypeMode.value === 'group') {
+      configData.chatid = selectedChatId.value
+    }
+  }
+
   let postData: Record<string, any> = {
     "id": generateBizUniqueID('IN'),
     "enable": 1,
@@ -184,7 +341,7 @@ const handleAddSubmit = async () => {
     "way_type": displayOptions.value[0]?.type,
     "way_name": displayOptions.value[0]?.name,
     "content_type": formData.value.templ_type,
-    "config": JSON.stringify(formData.value),
+    "config": JSON.stringify(configData),
   }
 
   try {
@@ -213,14 +370,34 @@ const formatInsConfigDisplay = (row: any) => {
     return "-"
   }
   let config = JSON.parse(row.config)
-  
+
   // 检查是否为动态接收者模式
   if (config.allowMultiRecip === true) {
     return "动态接收"
   }
-  
-  // 固定模式，根据 constant.js 配置动态获取接收者字段
+
+  // 检查是否有 sendTypeConfig（如企业微信应用）
   const channelConfig = CONSTANT.WAYS_DATA.find((item: any) => item.type === row.way_type)
+  if (channelConfig?.sendTypeConfig) {
+    const sendTypeField = channelConfig.sendTypeConfig.field
+    const mode = channelConfig.sendTypeConfig.modes.find((m: any) => m.value === config[sendTypeField])
+    if (mode) {
+      if (mode.useChatSelector) {
+        return `群聊: ${config.chatid || ''}`
+      }
+      if (mode.inputs && mode.inputs.length > 0) {
+        return config[mode.inputs[0].col] || '-'
+      }
+    }
+    // 兼容旧配置（无 send_type 字段）
+    if (channelConfig.taskInsInputs && channelConfig.taskInsInputs.length > 0) {
+      const firstInput = channelConfig.taskInsInputs[0]
+      return config[firstInput.col] || '-'
+    }
+    return '-'
+  }
+
+  // 固定模式，根据 constant.js 配置动态获取接收者字段
   if (channelConfig?.dynamicRecipient?.support) {
     const recipientField = channelConfig.dynamicRecipient.field
     return config[recipientField] || ""
@@ -423,6 +600,54 @@ defineExpose({
         </p>
       </div>
 
+      <!-- 发送方式选择器（用于企业微信应用等多模式渠道） -->
+      <div v-if="currentSendTypeConfig" class="mb-4 p-3 border rounded-lg bg-gray-50 dark:bg-gray-800/50">
+        <Label class="text-sm font-medium mb-2 block">发送方式</Label>
+        <RadioGroup v-model="sendTypeMode" class="flex gap-4">
+          <div v-for="mode in currentSendTypeConfig.modes" :key="mode.value" class="flex items-center space-x-2">
+            <RadioGroupItem :value="mode.value" :id="`send-type-${mode.value}`" />
+            <Label :for="`send-type-${mode.value}`" class="text-sm cursor-pointer">{{ mode.label }}</Label>
+          </div>
+        </RadioGroup>
+
+        <!-- 群聊选择器 -->
+        <div v-if="sendTypeMode === 'group' && currentModeConfig?.useChatSelector" class="mt-3">
+          <Label class="text-sm font-medium mb-1 block">选择群聊</Label>
+          <select
+            v-model="selectedChatId"
+            class="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <option value="" disabled>选择已有群聊...</option>
+            <option v-for="chat in groupChats" :key="chat.chatid" :value="chat.chatid">
+              {{ chat.name }} ({{ chat.chatid }})
+            </option>
+          </select>
+          <div class="flex items-center gap-2 mt-2">
+            <Button size="sm" variant="outline" @click="showCreateChatDialog = true" :disabled="!displayOptions[0]?.id">
+              + 新建群聊
+            </Button>
+            <Button size="sm" variant="outline" @click="syncAndFetchGroupChats" :disabled="isLoadingChats || !displayOptions[0]?.id">
+              {{ isLoadingChats ? '同步中...' : '🔄 同步群聊信息' }}
+            </Button>
+          </div>
+        </div>
+
+        <!-- 个人模式下的输入字段 -->
+        <div v-if="sendTypeMode !== 'group' && currentModeConfig?.inputs && currentModeConfig.inputs.length > 0" class="mt-3">
+          <div class="grid grid-cols-1 gap-4">
+            <div v-for="input in currentModeConfig.inputs" :key="input.col" class="space-y-2">
+              <label class="text-xs font-medium text-muted-foreground">{{ input.label || input.desc }}</label>
+              <Input
+                v-model="formData[input.col]"
+                :placeholder="input.desc || `请输入${input.label}`"
+                :type="input.type || 'text'"
+                class="w-full"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- 接收者输入字段 -->
       <div v-if="shouldShowRecipientInput" class="mb-2">
         <Label class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">实例配置</Label>
@@ -441,8 +666,8 @@ defineExpose({
         </div>
       </div>
       
-      <!-- 实例配置输入字段（排除动态接收者字段） -->
-      <div v-if="currentChannelConfig.taskInsInputs && currentChannelConfig.taskInsInputs.length > 0" class="mb-2">
+      <!-- 实例配置输入字段（当有sendTypeConfig时由发送方式区域渲染，此处跳过） -->
+      <div v-if="!currentSendTypeConfig && !currentModeConfig?.useChatSelector && currentChannelConfig.taskInsInputs && currentChannelConfig.taskInsInputs.length > 0" class="mb-2">
         <Label class="text-sm font-medium mb-1">实例配置</Label>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div 
@@ -522,6 +747,39 @@ defineExpose({
           </TableRow>
         </TableBody>
       </Table>
+    </div>
+
+    <!-- 新建群聊对话框 -->
+    <div v-if="showCreateChatDialog" class="fixed inset-0 z-50 flex items-center justify-center">
+      <div class="absolute inset-0 bg-black/50" @click="showCreateChatDialog = false"></div>
+      <div class="relative bg-background rounded-lg shadow-lg p-6 w-full max-w-md mx-4 space-y-4">
+        <h3 class="text-lg font-semibold">新建群聊</h3>
+        <div class="space-y-3">
+          <div class="space-y-2">
+            <Label class="text-sm font-medium">群聊名称</Label>
+            <Input v-model="createChatForm.name" placeholder="请输入群聊名称" class="w-full" />
+          </div>
+          <div class="space-y-2">
+            <Label class="text-sm font-medium">群主UserID</Label>
+            <Input v-model="createChatForm.owner" placeholder="请输入群主的userid" class="w-full" />
+          </div>
+          <div class="space-y-2">
+            <Label class="text-sm font-medium">群成员UserID</Label>
+            <textarea
+              v-model="createChatForm.userlist"
+              placeholder="请输入群成员userid，用竖线、逗号、分号或空格分隔，至少2人"
+              rows="3"
+              class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            ></textarea>
+          </div>
+        </div>
+        <div class="flex justify-end gap-2 pt-2">
+          <Button variant="outline" @click="showCreateChatDialog = false" :disabled="isCreatingChat">取消</Button>
+          <Button @click="handleCreateChat" :disabled="isCreatingChat">
+            {{ isCreatingChat ? '创建中...' : '创建' }}
+          </Button>
+        </div>
+      </div>
     </div>
   </div>
 </template>
