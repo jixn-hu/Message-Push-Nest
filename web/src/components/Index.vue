@@ -257,15 +257,20 @@ onMounted(() => {
   };
 });
 
-// 定义标签及其对应的路由路径
-const tabRoutes: TabRoute[] = [
+// 定义标签及其对应的路由路径（管理员可见）
+const allTabRoutes: TabRoute[] = [
   { name: '数据统计', path: '/' },
   { name: '发信日志', path: '/sendlogs' },
-  { name: '托管消息', path: '/hostedmessage' },
-  { name: '模板任务', path: '/templates' },
+  { name: '本站消息', path: '/hostedmessage' },
+  { name: '发送模板', path: '/templates' },
   { name: '发信渠道', path: '/sendways' },
   { name: '设置偏好', path: '/settings' }
 ];
+
+const tabRoutes = computed(() => {
+  if (pageState.userRole === 'admin') return allTabRoutes;
+  return allTabRoutes.filter(t => t.name !== '发信渠道' && t.name !== '设置偏好');
+});
 const activeTab = ref('Dashboard');
 
 // 处理标签点击事件，跳转到对应路由
@@ -291,7 +296,7 @@ const updateActiveTab = () => {
   const currentPath = route.path.startsWith('/') ? route.path.substring(1) : route.path;
 
   // 查找当前路由对应的标签
-  const currentTab = tabRoutes.find(tab => {
+  const currentTab = tabRoutes.value.find(tab => {
     // 对于根路径，需要精确匹配
     if (tab.path === '/') {
       return route.path === '/' || route.path === '';

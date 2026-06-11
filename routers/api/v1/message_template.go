@@ -334,3 +334,35 @@ func AddTemplateIns(c *gin.Context) {
 
 	appG.CResponse(http.StatusOK, "添加实例成功！", nil)
 }
+
+// UpdateTemplateIns 更新模板关联的实例
+func UpdateTemplateIns(c *gin.Context) {
+	var (
+		appG = app.Gin{C: c}
+		req  TemplateInsReq
+	)
+
+	errCode, errStr := app.BindJsonAndPlayValid(c, &req)
+	if errCode != e.SUCCESS {
+		appG.CResponse(errCode, errStr, nil)
+		return
+	}
+
+	InsService := send_ins_service.SendTaskInsService{
+		ID: req.ID,
+	}
+	err := InsService.Update(map[string]interface{}{
+		"template_id":  req.TemplateID,
+		"way_id":       req.WayID,
+		"way_type":     req.WayType,
+		"content_type": req.ContentType,
+		"config":       req.Config,
+		"extra":        req.Extra,
+	})
+	if err != nil {
+		appG.CResponse(http.StatusBadRequest, "更新模板实例失败！", nil)
+		return
+	}
+
+	appG.CResponse(http.StatusOK, "更新实例成功！", nil)
+}

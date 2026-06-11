@@ -51,6 +51,7 @@ func JWT() gin.HandlerFunc {
 				}
 			} else {
 				c.Set("currentUserName", claims.Username)
+			c.Set("currentUserRole", claims.Role)
 			}
 		}
 
@@ -64,6 +65,23 @@ func JWT() gin.HandlerFunc {
 			return
 		}
 
+		c.Next()
+	}
+}
+
+// AdminOnly 要求管理员角色
+func AdminOnly() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		role, _ := c.Get("currentUserRole")
+		if role != "admin" {
+			c.JSON(http.StatusForbidden, gin.H{
+				"code": 40003,
+				"msg":  "无权限，仅管理员可操作",
+				"data": nil,
+			})
+			c.Abort()
+			return
+		}
 		c.Next()
 	}
 }

@@ -114,10 +114,26 @@ func InitRouter(f embed.FS) *gin.Engine {
 	apiV1 := router.Group("/api/v1")
 	apiV1.Use(middleware.JWT())
 	{
-		// sendways
-		apiV1.POST("/sendways/add", v1.AddMsgSendWay)
-		apiV1.POST("/sendways/delete", v1.DeleteMsgSendWay)
-		apiV1.POST("/sendways/edit", v1.EditSendWay)
+		// 管理员专用路由
+		adminGroup := apiV1.Group("")
+		adminGroup.Use(middleware.AdminOnly())
+		{
+			// sendways (admin only: add/edit/delete)
+			adminGroup.POST("/sendways/add", v1.AddMsgSendWay)
+			adminGroup.POST("/sendways/delete", v1.DeleteMsgSendWay)
+			adminGroup.POST("/sendways/edit", v1.EditSendWay)
+
+			// settings (admin only: set/reset)
+			adminGroup.POST("/settings/set", v1.EditSettings)
+			adminGroup.POST("/settings/reset", v1.RestDefaultSettings)
+
+			// user management (admin only)
+			adminGroup.GET("/users/list", v1.ListUsers)
+			adminGroup.POST("/users/add", v1.AddNewUser)
+			adminGroup.POST("/users/delete", v1.DeleteUser)
+		}
+
+		// sendways (all authenticated users)
 		apiV1.POST("/sendways/test", v1.TestSendWay)
 		apiV1.GET("/sendways/list", v1.GetMsgSendWayList)
 		apiV1.GET("/sendways/get", v1.GetMsgSendWay)
@@ -135,6 +151,7 @@ func InitRouter(f embed.FS) *gin.Engine {
 		apiV1.GET("/sendtasks/ins/gettask", v1.GetMsgSendWayIns)
 		apiV1.POST("/sendtasks/ins/delete", v1.DeleteMsgTaskIns)
 		apiV1.POST("/sendtasks/ins/update_enable", v1.UpdateMsgTaskInsEnable)
+		apiV1.POST("/sendtasks/ins/update", v1.UpdateMsgTaskIns)
 
 		// message/send
 		apiV1.POST("/message/send", v1.DoSendMassage)
@@ -143,8 +160,6 @@ func InitRouter(f embed.FS) *gin.Engine {
 
 		// settings
 		apiV1.POST("/settings/setpasswd", v1.EditPasswd)
-		apiV1.POST("/settings/set", v1.EditSettings)
-		apiV1.POST("/settings/reset", v1.RestDefaultSettings)
 		apiV1.GET("/settings/getsetting", v1.GetUserSetting)
 
 		// login logs
@@ -181,6 +196,7 @@ func InitRouter(f embed.FS) *gin.Engine {
 		// messageTemplate instances
 		apiV1.GET("/templates/ins/get", v1.GetTemplateWithIns)
 		apiV1.POST("/templates/ins/addone", v1.AddTemplateIns)
+		apiV1.POST("/templates/ins/update", v1.UpdateTemplateIns)
 
 	}
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { Button } from '@/components/ui/button'
 import { Badge } from "@/components/ui/badge"
 import EmptyTableState from '@/components/ui/EmptyTableState.vue'
@@ -43,6 +43,7 @@ const apiConfig = computed(() => {
       addIns: '/templates/ins/addone',
       getIns: '/templates/ins/get',
       deleteIns: '/sendtasks/ins/delete',
+      updateIns: '/templates/ins/update',
       updateEnable: '/sendtasks/ins/update_enable',
       idField: 'template_id',
       nameField: 'name'
@@ -52,6 +53,7 @@ const apiConfig = computed(() => {
       addIns: '/sendtasks/ins/addone',
       getIns: '/sendtasks/ins/gettask',
       deleteIns: '/sendtasks/ins/delete',
+      updateIns: '/sendtasks/ins/update',
       updateEnable: '/sendtasks/ins/update_enable',
       idField: 'task_id',
       nameField: 'name'
@@ -64,18 +66,21 @@ const waysConfigMap = CONSTANT.WAYS_DATA
 
 // 搜索相关状态
 const searchQuery = ref('')
-const isSearching = ref(false)
 const channelName = ref('')
 
-// 当前显示的选项（搜索结果或所有选项）
-const displayOptions = ref<Array<{ id: string, name: string, type: string }>>([])
+// 所有渠道（组件挂载时加载）
+const allChannels = ref<Array<{ id: string, name: string, type: string }>>([])
 
-// 输入框显示值（只在用户搜索时显示搜索内容）
-const inputDisplayValue = computed({
-  get: () => searchQuery.value,
-  set: (value: string) => {
-    searchQuery.value = value
-  }
+// 编辑状态
+const editingInsId = ref<string | null>(null)
+
+// 当前显示的选项（客户端过滤）
+const displayOptions = computed(() => {
+  if (!searchQuery.value.trim()) return allChannels.value
+  const q = searchQuery.value.toLowerCase()
+  return allChannels.value.filter(item =>
+    item.name.toLowerCase().includes(q) || item.type.toLowerCase().includes(q)
+  )
 })
 
 // 当前选中渠道的配置
@@ -127,6 +132,8 @@ const currentModeConfig = computed(() => {
 
 // 监听渠道变化
 const handlechannelNameChange = () => {
+  // 编辑模式下不重置表单
+  if (editingInsId.value) return
   // 数据加载后，text/html单选设置默认选中（这里选第一个）
   if (currentChannelConfig.value?.taskInsRadios.length > 0) {
     formData.value.templ_type = currentChannelConfig.value?.taskInsRadios[0].subLabel
@@ -143,7 +150,7 @@ const handlechannelNameChange = () => {
 
 // 获取群聊列表（从本地数据库）
 const fetchGroupChats = async () => {
-  const wayId = displayOptions.value[0]?.id
+  const wayId = selectedWayId.value
   if (!wayId) return
   isLoadingChats.value = true
   try {
@@ -162,7 +169,7 @@ const fetchGroupChats = async () => {
 
 // 从企业微信同步群聊信息并刷新列表
 const syncAndFetchGroupChats = async () => {
-  const wayId = displayOptions.value[0]?.id
+  const wayId = selectedWayId.value
   if (!wayId) return
   isLoadingChats.value = true
   try {
@@ -210,7 +217,7 @@ const handleCreateChat = async () => {
     return
   }
 
-  const wayId = displayOptions.value[0]?.id
+  const wayId = selectedWayId.value
   if (!wayId) {
     toast.error('请先选择渠道')
     return
@@ -248,7 +255,65 @@ const handleCreateChat = async () => {
   }
 }
 
-// 添加单条实例配置
+// 获取选中渠道的 way_id
+const selectedWayId = computed(() => {
+  return allChannels.value.find(item => item.name === channelName.value)?.id || ''
+})
+
+// 点击已有实例进行编辑
+const startEdit = (ins: any) => {
+  editingInsId.value = ins.id
+  searchQuery.value = ''
+  channelName.value = ins.way_name || ''
+  // 从 allChannels 中找到对应渠道
+  const channel = allChannels.value.find(c => c.type === ins.way_type && c.name === ins.way_name)
+  if (!channel && allChannels.value.length === 0) {
+    // 渠道未加载，先触发加载
+    loadAllChannels().then(() => {
+      const ch = allChannels.value.find(c => c.type === ins.way_type)
+      if (ch) channelName.value = ch.name
+    })
+  } else if (!channel && allChannels.value.length > 0) {
+    // 可能渠道名变了，尝试用 type 匹配
+    const ch = allChannels.value.find(c => c.type === ins.way_type)
+    if (ch) channelName.value = ch.name
+  }
+
+  // 解析 config 还原表单数据
+  let config: Record<string, any> = {}
+  try {
+    config = JSON.parse(ins.config || '{}')
+  } catch { config = {} }
+
+  formData.value = {
+    allowMultiRecip: config.allowMultiRecip || false,
+    templ_type: ins.content_type || '',
+    ...config
+  }
+
+  // 还原发送方式
+  if (config.send_type) {
+    sendTypeMode.value = config.send_type
+  }
+  if (config.chatid) {
+    selectedChatId.value = config.chatid
+  }
+  if (config.send_type === 'group') {
+    fetchGroupChats()
+  }
+}
+
+// 取消编辑
+const cancelEdit = () => {
+  editingInsId.value = null
+  channelName.value = ''
+  formData.value = { allowMultiRecip: false }
+  sendTypeMode.value = 'user'
+  selectedChatId.value = ''
+  searchQuery.value = ''
+}
+
+// 添加/更新单条实例配置
 const handleAddSubmit = async () => {
   // 验证是否选择了渠道
   if (!channelName.value) {
@@ -256,8 +321,20 @@ const handleAddSubmit = async () => {
     return
   }
 
-  // 检查动态接收和固定接收不能混合使用
-  if (insTableData.value.length > 0) {
+  const wayId = selectedWayId.value
+  if (!wayId) {
+    toast.error('未找到对应渠道，请重新选择')
+    return
+  }
+
+  const selectedChannel = allChannels.value.find(item => item.name === channelName.value)
+  if (!selectedChannel) {
+    toast.error('未找到对应渠道配置')
+    return
+  }
+
+  // 检查动态接收和固定接收不能混合使用（编辑时不检查自身）
+  if (!editingInsId.value && insTableData.value.length > 0) {
     const hasDynamicInstance = insTableData.value.some(ins => {
       try {
         const config = JSON.parse(ins.config)
@@ -266,10 +343,9 @@ const handleAddSubmit = async () => {
         return false
       }
     })
-    
+
     const entityName = props.type === 'template' ? '模板' : '任务'
-    
-    // 如果要添加动态接收实例，但已有其他实例
+
     if (formData.value.allowMultiRecip === true) {
       if (hasDynamicInstance) {
         toast.error(`该${entityName}已存在动态接收实例，一个${entityName}只能配置一个动态接收实例`)
@@ -280,8 +356,7 @@ const handleAddSubmit = async () => {
         return
       }
     }
-    
-    // 如果要添加固定接收实例，但已有动态接收实例
+
     if (formData.value.allowMultiRecip !== true && hasDynamicInstance) {
       toast.error(`该${entityName}已配置动态接收实例，不能再添加固定接收实例`)
       return
@@ -310,11 +385,10 @@ const handleAddSubmit = async () => {
       'html': 'html_template',
       'markdown': 'markdown_template'
     }
-    
+
     const fieldName = templateFieldMap[contentType.toLowerCase()]
     if (fieldName) {
       const templateContent = props.data?.[fieldName] || ''
-      // 检查是否为空（去除所有空白字符后检查）
       if (!templateContent.trim()) {
         toast.error(`模板的 ${contentType} 格式内容为空，无法添加此类型的实例`)
         return
@@ -322,10 +396,8 @@ const handleAddSubmit = async () => {
     }
   }
 
-  // 组建表单数据
   // 构建 config JSON
   const configData: Record<string, any> = { ...formData.value }
-  // 发送方式配置
   if (currentSendTypeConfig.value) {
     configData.send_type = sendTypeMode.value
     if (sendTypeMode.value === 'group') {
@@ -333,31 +405,29 @@ const handleAddSubmit = async () => {
     }
   }
 
+  const isEditing = !!editingInsId.value
   let postData: Record<string, any> = {
-    "id": generateBizUniqueID('IN'),
+    "id": isEditing ? editingInsId.value : generateBizUniqueID('IN'),
     "enable": 1,
     [apiConfig.value.idField]: props.data.id,
-    "way_id": displayOptions.value[0]?.id,
-    "way_type": displayOptions.value[0]?.type,
-    "way_name": displayOptions.value[0]?.name,
+    "way_id": wayId,
+    "way_type": selectedChannel.type,
     "content_type": formData.value.templ_type,
     "config": JSON.stringify(configData),
   }
 
   try {
-    const response = await request.post(apiConfig.value.addIns, postData)
+    const url = isEditing ? apiConfig.value.updateIns : apiConfig.value.addIns
+    const response = await request.post(url, postData)
     if (response.status === 200 && response.data.code === 200) {
       toast.success(response.data.msg)
-      // 重新加载实例列表
       await queryInsListData()
-      // 清空表单
-      channelName.value = ''
-      formData.value = { allowMultiRecip: false }
+      cancelEdit()
     } else {
-      toast.error(response.data.msg || '添加实例失败')
+      toast.error(response.data.msg || (isEditing ? '更新实例失败' : '添加实例失败'))
     }
   } catch (error: any) {
-    toast.error(error.response?.data?.msg || '添加实例失败')
+    toast.error(error.response?.data?.msg || (isEditing ? '更新实例失败' : '添加实例失败'))
   }
 }
 
@@ -480,42 +550,20 @@ const handleToggleEnable = async (insId: string, currentStatus: number | string)
   }
 }
 
-// 防抖定时器
-let searchTimer: number | null = null
-
-// 搜索渠道（带防抖）
-const handleSearch = (query: string) => {
-  // 清除之前的定时器
-  if (searchTimer) {
-    clearTimeout(searchTimer)
-  }
-  
-  if (!query.trim()) {
-    displayOptions.value = []
-    return
-  }
-
-  // 设置防抖延迟（500ms）
-  searchTimer = window.setTimeout(async () => {
-    isSearching.value = true
-    try {
-      const response = await request.get('/sendways/list', {
-        params: { name: query }
-      })
-      if (response.status === 200 && response.data.code === 200) {
-        displayOptions.value = response.data.data.lists.map((item: any) => ({
-          id: item.id,
-          name: item.name,
-          type: item.type
-        }))
-      }
-    } catch (error) {
-      console.error('搜索渠道失败', error)
-      displayOptions.value = []
-    } finally {
-      isSearching.value = false
+// 加载所有渠道（组件挂载时调用一次）
+const loadAllChannels = async () => {
+  try {
+    const response = await request.get('/sendways/list')
+    if (response.status === 200 && response.data.code === 200) {
+      allChannels.value = response.data.data.lists.map((item: any) => ({
+        id: item.id,
+        name: item.name,
+        type: item.type
+      }))
     }
-  }, 500)
+  } catch (error) {
+    console.error('加载渠道失败', error)
+  }
 }
 
 // 监听数据变化，自动加载实例列表
@@ -524,6 +572,11 @@ watch(() => props.data?.id, (newVal) => {
     queryInsListData()
   }
 }, { immediate: true })
+
+// 组件挂载时加载所有渠道
+onMounted(() => {
+  loadAllChannels()
+})
 
 // 暴露方法供父组件调用
 defineExpose({
@@ -551,11 +604,10 @@ defineExpose({
           <Label class="text-sm font-medium">选择发送渠道</Label>
           <Combobox v-model="channelName" @update:model-value="handlechannelNameChange">
             <ComboboxAnchor class="w-full">
-              <ComboboxInput 
-                v-model="inputDisplayValue" 
-                @input="handleSearch(inputDisplayValue)"
-                class="flex h-10 w-full" 
-                placeholder="搜索或选择渠道类型进行实例的添加..." 
+              <ComboboxInput
+                v-model="searchQuery"
+                class="flex h-10 w-full"
+                placeholder="搜索或选择渠道类型进行实例的添加..."
               />
             </ComboboxAnchor>
             <ComboboxList class="w-[var(--reka-combobox-trigger-width)]">
@@ -566,15 +618,17 @@ defineExpose({
                     <CheckIcon v-if="channelName === option.name" class="h-4 w-4" />
                   </div>
                 </ComboboxItem>
-                <div v-if="isSearching" class="p-2 text-sm text-muted-foreground">搜索中...</div>
-                <div v-if="!isSearching && displayOptions.length === 0 && searchQuery" class="p-2 text-sm text-muted-foreground">
+                <div v-if="displayOptions.length === 0 && searchQuery" class="p-2 text-sm text-muted-foreground">
                   未找到匹配的渠道
                 </div>
               </ComboboxViewport>
             </ComboboxList>
           </Combobox>
         </div>
-        <Button size="sm" variant="outline" @click="handleAddSubmit">添加实例</Button>
+        <div class="flex items-center gap-2">
+          <Button v-if="editingInsId" size="sm" variant="outline" @click="cancelEdit">取消编辑</Button>
+          <Button size="sm" variant="outline" @click="handleAddSubmit">{{ editingInsId ? '更新实例' : '添加实例' }}</Button>
+        </div>
       </div>
     </div>
 
@@ -623,10 +677,10 @@ defineExpose({
             </option>
           </select>
           <div class="flex items-center gap-2 mt-2">
-            <Button size="sm" variant="outline" @click="showCreateChatDialog = true" :disabled="!displayOptions[0]?.id">
+            <Button size="sm" variant="outline" @click="showCreateChatDialog = true" :disabled="!selectedWayId">
               + 新建群聊
             </Button>
-            <Button size="sm" variant="outline" @click="syncAndFetchGroupChats" :disabled="isLoadingChats || !displayOptions[0]?.id">
+            <Button size="sm" variant="outline" @click="syncAndFetchGroupChats" :disabled="isLoadingChats || !selectedWayId">
               {{ isLoadingChats ? '同步中...' : '🔄 同步群聊信息' }}
             </Button>
           </div>
@@ -711,7 +765,15 @@ defineExpose({
           </TableRow>
         </TableHeader>
         <TableBody>
-          <TableRow v-for="ins in insTableData" :key="ins.id">
+          <TableRow
+            v-for="ins in insTableData"
+            :key="ins.id"
+            :class="[
+              'cursor-pointer hover:bg-muted/50 transition-colors',
+              editingInsId === ins.id ? 'bg-primary/5 border-l-2 border-l-primary' : ''
+            ]"
+            @click="startEdit(ins)"
+          >
             <TableCell>
               <div class="font-medium">{{ ins.way_name || '未命名' }}</div>
               <div class="text-xs text-muted-foreground">{{ ins.way_type }}</div>
@@ -724,15 +786,15 @@ defineExpose({
               <span v-else class="text-sm text-muted-foreground">-</span>
             </TableCell>
             <TableCell class="text-center">
-              <div class="flex items-center justify-center gap-2">
-                <Switch 
-                  :model-value="ins.enable === 1" 
-                  @update:model-value="() => handleToggleEnable(ins.id, ins.enable)" 
+              <div class="flex items-center justify-center gap-2" @click.stop>
+                <Switch
+                  :model-value="ins.enable === 1"
+                  @update:model-value="() => handleToggleEnable(ins.id, ins.enable)"
                 />
-                <Button 
-                  size="sm" 
-                  variant="outline" 
-                  class="text-red-500 border-red-300 hover:bg-red-50 hover:border-red-400 hover:text-red-600 hover:shadow-md transition-all duration-200" 
+                <Button
+                  size="sm"
+                  variant="outline"
+                  class="text-red-500 border-red-300 hover:bg-red-50 hover:border-red-400 hover:text-red-600 hover:shadow-md transition-all duration-200"
                   @click="handleDeleteIns(ins.id)"
                 >
                   删除

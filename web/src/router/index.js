@@ -79,6 +79,9 @@ const autoLogin = async () => {
     const res = await axios.post(baseURL + '/auth', { username: account, passwd: password })
     if (res.data && res.data.code === 200 && res.data.data && res.data.data.token) {
       localStorage.setItem(CONSTANT.STORE_TOKEN_NAME, res.data.data.token)
+      if (res.data.data.role) {
+        localStorage.setItem('__message_nest_role__', res.data.data.role)
+      }
       return true
     }
   } catch (e) {
@@ -113,6 +116,15 @@ router.beforeEach(async (to, from, next) => {
   // 如果有token且访问登录页，跳转到首页
   else if (isAuthenticated && to.path === '/login') {
     next('/');
+  }
+  // 普通用户不能访问渠道和设置页
+  else if (isAuthenticated) {
+    const role = localStorage.getItem('__message_nest_role__') || 'admin';
+    if (role !== 'admin' && (to.path === '/sendways' || to.path === '/settings')) {
+      next('/');
+    } else {
+      next();
+    }
   }
   // 其他情况正常访问
   else {

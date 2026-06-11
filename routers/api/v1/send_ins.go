@@ -214,3 +214,35 @@ func UpdateMsgTaskInsEnable(c *gin.Context) {
 	}
 	appG.CResponse(http.StatusOK, msg, nil)
 }
+
+// UpdateMsgTaskIns 更新实例
+func UpdateMsgTaskIns(c *gin.Context) {
+	var (
+		appG = app.Gin{C: c}
+		req  SendTasksInsReq
+	)
+
+	errCode, errStr := app.BindJsonAndPlayValid(c, &req)
+	if errCode != e.SUCCESS {
+		appG.CResponse(errCode, errStr, nil)
+		return
+	}
+
+	InsService := send_ins_service.SendTaskInsService{
+		ID: req.ID,
+	}
+	err := InsService.Update(map[string]interface{}{
+		"task_id":      req.TaskId,
+		"way_id":       req.WayID,
+		"way_type":     req.WayType,
+		"content_type": req.ContentType,
+		"config":       req.Config,
+		"extra":        req.Extra,
+	})
+	if err != nil {
+		appG.CResponse(http.StatusBadRequest, "更新实例失败！", nil)
+		return
+	}
+
+	appG.CResponse(http.StatusOK, "更新实例成功！", nil)
+}

@@ -110,6 +110,9 @@ let clickLogin = async () => {
         toast.error(rsp.msg);
     } else {
         pageState.setToken(rsp.data.token);
+        if (rsp.data.role) {
+          pageState.setUserRole(rsp.data.role);
+        }
         toast.success('登录成功');
         // 延迟一下再跳转，让用户看到成功提示
         setTimeout(() => {

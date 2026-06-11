@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { KeyIcon, TrashIcon, SettingsIcon, InfoIcon, HistoryIcon } from 'lucide-vue-next'
+import { KeyIcon, TrashIcon, SettingsIcon, InfoIcon, HistoryIcon, UsersIcon } from 'lucide-vue-next'
+import { usePageState } from '@/store/page_sate'
+
+const pageState = usePageState()
+const isAdmin = pageState.userRole === 'admin'
 
 // 定义props
 interface Props {
@@ -18,9 +22,10 @@ defineEmits<Emits>()
 // 设置菜单项
 const settingsMenu = [
   { id: 'password', name: '重置密码', icon: KeyIcon },
-  { id: 'clean', name: '数据清理', icon: TrashIcon },
-  { id: 'loginlogs', name: '登录日志', icon: HistoryIcon },
-  { id: 'site', name: '站点设置', icon: SettingsIcon },
+  { id: 'clean', name: '数据清理', icon: TrashIcon, adminOnly: true },
+  { id: 'loginlogs', name: '登录日志', icon: HistoryIcon, adminOnly: true },
+  { id: 'site', name: '站点设置', icon: SettingsIcon, adminOnly: true },
+  { id: 'users', name: '用户管理', icon: UsersIcon, adminOnly: true },
   { id: 'about', name: '站点关于', icon: InfoIcon }
 ]
 </script>
@@ -43,6 +48,7 @@ export default {
           <button
             v-for="item in settingsMenu"
             :key="item.id"
+            v-show="!item.adminOnly || isAdmin"
             @click="$emit('update:activeTab', item.id)"
             :class="[
               'w-full flex items-center px-4 py-3 text-left text-sm font-medium transition-colors rounded-md',

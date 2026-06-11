@@ -18,6 +18,10 @@ import { request } from '@/api/api';
 import { CONSTANT } from '@/constant';
 // @ts-ignore
 import { getPageSize } from '@/util/pageUtils';
+import { usePageState } from '@/store/page_sate';
+
+const pageState = usePageState();
+const isAdmin = computed(() => pageState.userRole === 'admin');
 
 
 interface WayItem {
@@ -183,7 +187,7 @@ onMounted(async () => {
 
       </div>
 
-      <div class="flex-shrink-0">
+      <div class="flex-shrink-0" v-if="isAdmin">
         <Dialog v-model:open="isAddChannelDrawerOpen">
           <DialogTrigger as-child>
             <Button variant="default" class="w-full sm:w-auto">
@@ -237,10 +241,9 @@ onMounted(async () => {
           </TableCell>
           <TableCell class="whitespace-nowrap w-[160px]">{{ channel.created_on }}</TableCell>
           <TableCell class="whitespace-nowrap w-[160px]">{{ channel.modified_on }}</TableCell>
-          <TableCell class="text-center space-x-2">
+          <TableCell class="text-center space-x-2" v-if="isAdmin">
             <Button size="sm" variant="outline" @click="openEditChannelDrawer(channel)">编辑</Button>
-            <!-- <Button size="sm" variant="outline" @click="openConfigSheet(channel)">查看</Button> -->
-            <Button size="sm" variant="outline" class="text-red-500 border-red-300 hover:bg-red-50 
+            <Button size="sm" variant="outline" class="text-red-500 border-red-300 hover:bg-red-50
               hover:border-red-400 hover:text-red-600 hover:shadow-md
                transition-all duration-200" @click="handleDelete(channel.id)">删除</Button>
             <!-- <Badge :class="channel.status === 1 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'">

@@ -11,11 +11,12 @@ import (
 type UserClaims struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
+	Role     string `json:"role"`
 
 	jwt.RegisteredClaims
 }
 
-func GenerateToken(username, password string, expDays int) (string, error) {
+func GenerateToken(username, password, role string, expDays int) (string, error) {
 	// 如果传入的天数小于等于0，使用默认值1天
 	if expDays <= 0 {
 		expDays = 1
@@ -24,6 +25,7 @@ func GenerateToken(username, password string, expDays int) (string, error) {
 	SetClaims := UserClaims{
 		Username: username,
 		Password: EncodeMD5(password),
+		Role:     role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(expHours)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),

@@ -6,6 +6,7 @@ import CleanSettings from './CleanSettings.vue'
 import SiteSettings from './SiteSettings.vue'
 import AboutSettings from './AboutSettings.vue'
 import LoginLogs from './LoginLogs.vue'
+import UserManagement from './UserManagement.vue'
 
 // 当前选中的设置项
 const activeTab = ref('password')
@@ -36,6 +37,9 @@ const activeTab = ref('password')
 
         <!-- 站点关于 -->
         <AboutSettings v-if="activeTab === 'about'" />
+
+        <!-- 用户管理 -->
+        <UserManagement v-if="activeTab === 'users'" />
       </div>
     </div>
   </div>

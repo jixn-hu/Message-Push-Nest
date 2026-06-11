@@ -111,18 +111,23 @@ func GetAuth(c *gin.Context) {
 
 	// 获取配置的 cookie 过期天数
 	expDays := settings_service.GetCookieExpDays()
-	token, err := util.GenerateToken(req.Username, req.Password, expDays)
+	// 获取用户角色
+	user, err := models.GetUserByUsername(req.Username)
+	if err != nil {
+		appG.CResponse(http.StatusInternalServerError, fmt.Sprintf("获取用户信息失败：%s", err), nil)
+		return
+	}
+	token, err := util.GenerateToken(req.Username, req.Password, user.Role, expDays)
 	if err != nil {
 		appG.CResponse(http.StatusInternalServerError, fmt.Sprintf("生成token失败：%s", err), nil)
 		return
 	}
 
-	// 查询用户ID并记录登录日志
-	if u, _ := models.GetUserByUsername(req.Username); u != nil {
-		_ = models.AddLoginLog(u.ID, req.Username, c.ClientIP(), c.GetHeader("User-Agent"))
-	}
+	// 记录登录日志
+	_ = models.AddLoginLog(user.ID, req.Username, c.ClientIP(), c.GetHeader("User-Agent"))
 
 	appG.CResponse(http.StatusOK, "登录成功!", map[string]string{
 		"token": token,
+		"role":  user.Role,
 	})
 }

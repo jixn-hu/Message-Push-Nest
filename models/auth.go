@@ -8,6 +8,7 @@ type Auth struct {
 	ID       int    `json:"id" gorm:"autoIncrement;type:integer ;primaryKey" json:"id"`
 	Username string `json:"username" gorm:"type:varchar(100);default:'';"`
 	Password string `json:"password" gorm:"type:varchar(100);default:'';"`
+	Role     string `json:"role" gorm:"type:varchar(20);default:'admin'"`
 }
 
 // CheckAuth 检查用户信息
@@ -54,4 +55,26 @@ func AddUser(account string, password string) error {
 		return err
 	}
 	return nil
+}
+
+func AddUserWithRole(account, password, role string) error {
+	auth := Auth{
+		Username: account,
+		Password: password,
+		Role:     role,
+	}
+	if err := db.Create(&auth).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
+func GetAllUsers() ([]Auth, error) {
+	var users []Auth
+	err := db.Order("id ASC").Find(&users).Error
+	return users, err
+}
+
+func DeleteUserByID(id int) error {
+	return db.Where("id = ?", id).Delete(&Auth{}).Error
 }
